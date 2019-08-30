@@ -14,8 +14,7 @@ Current this project is used to test the accuracy of neural networks with delaye
 
 Control 
 
-    - 99.56% test accuracy over 10 epochs 
-    - 0.014893932212795119 test loss
-
+    - 99.0814% test accuracy over 10 epochs 
+    
     
 
