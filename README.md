@@ -8,13 +8,14 @@ Current this project is used to test the accuracy of neural networks with delaye
 
 ## Files 
 * main.py - normal alexnet implementation of mnist dataset run over 10 epochs
-* main2.py - Delayed Gradient updates added to alexnet implementation of mnist dataset run over 10 epochs
+* main2.py - pytorch implementation of alexnet. We need to puse pytorch due to its use of dynamic computational graphs 
 
 ## Current Results
 
-Control 
+main.py
 
-    - 99.0814% test accuracy over 10 epochs 
+    - 99.0814% test accuracy over 10 epochs  
+
     
     
 
