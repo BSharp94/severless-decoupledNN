@@ -93,57 +93,44 @@ test_loader = torch.utils.data.DataLoader(
 
 for epoch_iter in range(NUM_EPOCHS):
 
-    print("starting epoch ", epoch_iter + 1)
+    print("Starting Epoch ", epoch_iter + 1)
 
-    # train?
     for batch_idx, (data, target) in enumerate(train_loader):
         
-        data.requires_grad_(True)
+        # Section 1 Forward
+        data.requires_grad_(True) # Allow gradient to be tracked
+        model1.zero_grad() # Unsure clean iteration
+        output1 = model1(data) # pass output forward
 
-        model1.train()
-        model1.zero_grad()
-        # backwards
-        optimizer1.step()
-        output1 = model1(data)
-        model1.zero_grad()
-
-
-        model2.train()
-        model2.zero_grad()
-        # backwards
-        optimizer2.step()
-        output2_input = output1.detach().clone()
+        # Section 2 Forward
+        output2_input = output1.detach().clone() # detach gradient
         output2_input.requires_grad_(True)
-        output2 = model2(output2_input)
         model2.zero_grad()
-
-        model3.train()
-        model3.zero_grad()
-        optimizer3.step()
+        output2 = model2(output2_input)
+        
+        # Section 3 Forward
         output3_input = output2.detach().clone()
         output3_input.requires_grad_(True)
+        model3.zero_grad()
         output3 = model3(output3_input)
 
+        # Calculate Loss And Accuracy
         loss = F.cross_entropy(output3, target)
         _, predicted = torch.max(output3.data, 1)
         correct = (predicted == target).sum().item()
         acc = correct / target.size(0)
+        print("Epoch: ", epoch_iter, " Loss: ", loss, " Acc: ", acc)
 
-        model3.zero_grad()
-
+        # Section 3 backward
         loss.backward()
-        output2.backward(output3_input.grad)
-        output1.backward(output2_input.grad)
-
         optimizer3.step()
-        optimizer2.step()
-        optimizer1.step()
-        
 
-        
-        # calc accuracy
-        _, indices = output3.max(1)
-        acc = target.eq(indices).sum().item() / BATCH_SIZE
-        print("Acc: ", acc)
+        # Section 2 backward
+        output2.backward(output3_input.grad)
+        optimizer2.step()
+
+        # Section 1 backward
+        output1.backward(output2_input.grad)
+        optimizer1.step()
 
 print("complete")
