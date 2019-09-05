@@ -20,7 +20,7 @@ class Section1(nn.Module):
     
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(1, 36, kernel_size = 2, padding=1)
+        self.conv1 = nn.Conv2d(1, 36, kernel_size = 3, padding=1)
         self.conv2 = nn.Conv2d(36, 36, kernel_size = 2)
         self.pooling1 = nn.AvgPool2d(kernel_size=2)
         self.dropout1 = nn.Dropout(p = 0.25)
@@ -56,7 +56,7 @@ class Section3(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.linear1 = nn.Linear(7 * 7 * 64, 1028)
+        self.linear1 = nn.Linear(6 * 6 * 64, 1028)
         self.dropout3 = nn.Dropout(p = 0.25)
         self.linear2 = nn.Linear(1028, NUM_CLASSES)
 
