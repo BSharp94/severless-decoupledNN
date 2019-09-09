@@ -58,7 +58,7 @@ class Section3(nn.Module):
     def __init__(self):
         super().__init__()
         self.linear1 = nn.Linear(7 * 7 * 64, 1028)
-        self.dropout3 = nn.Dropout(p = 0.6)
+        self.dropout3 = nn.Dropout(p = 0.25)
         self.linear2 = nn.Linear(1028, NUM_CLASSES)
 
     def forward(self, x):
@@ -103,7 +103,7 @@ section2_gradient_queue = deque()
 
 label_queue = deque()
 
-lr_shrink = 0.2
+lr_shrink = 0.5
 for epoch_iter in range(NUM_EPOCHS):
 
     print("Starting Epoch ", epoch_iter + 1)
@@ -173,7 +173,6 @@ for epoch_iter in range(NUM_EPOCHS):
             target_true =  label_queue.popleft()
             loss = F.cross_entropy(output3,target_true)
             _, predicted = torch.max(output3.data, 1)
-            print(predicted)
             correct = (predicted == target_true).sum().item()
             acc = correct / target_true.size(0)
             print("Epoch: ", epoch_iter, " Iter: ", batch_idx, " Loss: ", loss, " Acc: ", acc)
