@@ -4,11 +4,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import datasets, transforms
+import time
 
 DATA_DIR  = "data"
 NUM_CLASSES = 10
 NUM_CHANNELS = 10
-NUM_EPOCHS = 10
+NUM_EPOCHS = 100
 BATCH_SIZE = 64
 
 VALIDATION_ITER = 100
@@ -74,10 +75,13 @@ test_loader = torch.utils.data.DataLoader(
 
 validation_records = []
 test_records = []
+time_records = []
+
 for epoch_iter in range(NUM_EPOCHS):
 
     print("Starting Epoch ", epoch_iter + 1)
 
+    start_time = time.time()
     validation_epoch_record = []
     # Train
     model.train()
@@ -115,6 +119,7 @@ for epoch_iter in range(NUM_EPOCHS):
     print('Test set: Accuracy: {}/{} ({:.0f}%)\n'.format(correct, len(test_loader.dataset), acc))
     test_records.append({"Epoch": epoch_iter, "Accuracy": acc})
 
+    time_records.append(time.time() - start_time)
 
 # Save the output
 np.save("control_validation", validation_records)

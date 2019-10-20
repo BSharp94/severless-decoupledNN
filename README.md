@@ -1,24 +1,17 @@
 # Severless Decoupled NN Using Delayed Gradients
 
-8/28/19
-Current this project is used to test the accuracy of neural networks with delayed gradient updates. We aim to prove two key points:
+This project implements a delayed architecture for Neural networks. It targets cloud functions as an ideal infrastructure for improving run times.
 
-1. Delayed gradient updates can produce models with the competitive accuracy
-2. Delayed gradients reach a global minimum relativly the same number of iterations
+## Compare Accuracy
 
-## Files 
-* main.py - normal alexnet implementation of mnist dataset run over 10 epochs
-* main2.py - pytorch implementation of alexnet. We need to puse pytorch due to its use of dynamic computational graphs 
-* main3.py - break up the network into 3 sections. Runs synchronous but passes the gradient through communication step. 
-* main4.py - network works in 3 section. Uses queues to store delayed gradient updates.
+Currently this folder is used to test that the delayed model implements the same level of accuracy with a delay in the update gradients. 
 
+## GCloud
 
-## Current Results
+This folder stores the scripts for the google cloud functions.
 
-main.py
+## TODOs
 
-    - 99.0814% test accuracy over 10 epochs  
+* Implement a unique id system for the data batches to ensure that the backprop signals match 
 
-
-    
-
+* Implement a reduction method for learning rate.
