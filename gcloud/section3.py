@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import base64
 from google.cloud import storage, pubsub
+import time
 
 def get_model_data(bucket_name, model_name):
     storage_client = storage.Client()
@@ -58,14 +59,32 @@ class Section3(nn.Module):
 
         return out
 
-def run_section_full(request):
-    request_json = request.get_json()
 
+futures = dict()
+
+def get_callback(f, id):
+    def callback(f):
+        try:
+            futures.pop(id)
+        except:
+            print("No Future found")
+    return callback
+
+def run_section_full(event, context):
+
+    data = base64.b64decode(event['data']).decode('utf-8')
+    
     # Load input Signal
-    input_signal = decode_signal(request_json["input_signal"], (64, 64 * 7 * 7))
+    input_signal = decode_signal(data, (64, 64 * 7 * 7))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
     
+    subscriber = pubsub.SubscriberClient()
+    subscription_path = subscriber.subscription_path("cloundnetwork", "labels")
+    response = subscriber.pull(subscription_path, max_messages=1)
+    messages = response.received_messages
+    label = torch.Tensor(list(messages[0].message.data)).type(torch.LongTensor)
+
     # Load Model
     model = Section3()
     model_state = get_model_data(bucket_name, model_name)
@@ -80,7 +99,6 @@ def run_section_full(request):
     output = model.forward(input_signal)
 
     # Get True Output Signal
-    label = torch.Tensor([int(i) for i in request_json["output_signal"]]).type(torch.LongTensor)
     loss = F.cross_entropy(output, label)
     _, predicted = torch.max(output.data, 1)
     correct = (predicted == label).sum().item()
@@ -94,11 +112,14 @@ def run_section_full(request):
     save_model(bucket_name, model_name, model)
     
     # Make network request to next layer 
-    
-    back_signal = input_signal.grad.detach().clone()
-    encoded_signal = encode_signal(back_signal.data)
-    data = {
-        "backprop_signal": encoded_signal,
-    }
-    
-    requests.post("https://us-central1-cloundnetwork.cloudfunctions.net/section2-back", json=data)
+    publisher = pubsub.PublisherClient()
+    topic_path = publisher.topic_path("cloundnetwork", "section2_backprop")
+
+    future = publisher.publish(
+        topic_path, data=base64.b64encode(input_signal.grad.data.numpy().data)  # data must be a bytestring.
+    )
+    futures["section2_backprop"] = future
+    future.add_done_callback(get_callback(future, "section2_backprop"))
+
+    while futures:
+        time.sleep(1)
