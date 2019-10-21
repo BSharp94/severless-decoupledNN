@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import base64
 from google.cloud import storage, pubsub
+import time
 
 def get_model_data(bucket_name, model_name):
     storage_client = storage.Client()
@@ -58,11 +59,22 @@ class Section1(nn.Module):
         out = self.dropout1(out)
         return out
 
-def run_section_forward(request):
-    request_json = request.get_json()
+futures = dict()
 
+def get_callback(f, id):
+    def callback(f):
+        try:
+            futures.pop(id)
+        except:
+            print("No Future found")
+    return callback
+
+def run_section_forward(event, context):
+
+    data = base64.b64decode(event['data']).decode('utf-8')
+    
     # Get Input Signal and Environment Vars
-    input_signal = decode_signal(request_json["input_signal"], (64, 1, 28, 28))
+    input_signal = decode_signal(data, (64, 1, 28, 28))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
     
@@ -77,34 +89,44 @@ def run_section_forward(request):
     # Send Signal Forward
     output = model.forward(input_signal)
 
-    # Send Output to PubSub
+    # Send Output to section 2
     publisher = pubsub.PublisherClient()
-    topic_path = publisher.topic_path("cloundnetwork", "section2-input")
+    topic_path = publisher.topic_path("cloundnetwork", "section2_input")
+
+    data = base64.b64encode(output.data.numpy().data)
 
     future = publisher.publish(
-        topic_path, data=base64.b64encode(output.data.numpy().data)  # data must be a bytestring.
+        topic_path, data = data 
     )
+    futures["section2_input"] = future
+    future.add_done_callback(get_callback(future, "section2_input"))
 
-    # Make network request to next layer 
-    encoded_signal = encode_signal(output.data)
-    data = {
-        "input_signal": encoded_signal,
-        "output_signal": request_json["output_signal"], # TODO make into pubsub
-    }
+    # Send Output to section 2 delay
+    topic_path = publisher.topic_path("cloundnetwork", "section2_input_delay")
 
-    requests.post("https://us-central1-cloundnetwork.cloudfunctions.net/section2", json=data)
-    
-def run_section_backwards(request):
-    request_json = request.get_json()
+    future = publisher.publish(
+        topic_path, data= data
+    )
+    futures["section2_input_delay"] = future
+    future.add_done_callback(get_callback(future, "section2_input_delay"))
+
+    # Ensure delivery
+    while futures:
+        time.sleep(1)
+
+
+def run_section_backwards(event, context):
+
+    data = base64.b64decode(event['data']).decode('utf-8')
 
     # Get Backprop Signal and Environment Vars
-    backprop_signal = decode_signal(request_json["backprop_signal"], (64, 36, 14, 14))
+    backprop_signal = decode_signal(data, (64, 36, 14, 14))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
 
     # Get Input Signal
     subscriber = pubsub.SubscriberClient()
-    subscription_path = subscriber.subscription_path("cloundnetwork", "section1-back")
+    subscription_path = subscriber.subscription_path("cloundnetwork", "section1_input_delay")
     response = subscriber.pull(subscription_path, max_messages=1)
     messages = response.received_messages
     input_signal = decode_signal(messages[0].message.data, (64, 1, 28, 28))
@@ -124,6 +146,9 @@ def run_section_backwards(request):
 
     # Calculate Loss
     output.backward(backprop_signal)
+    
+    # Update
+    optimizer.step()
 
     # Save Model
     save_model(bucket_name, model_name, model)

@@ -20,9 +20,21 @@ train_loader = torch.utils.data.DataLoader(
                         ])),
         batch_size=BATCH_SIZE, shuffle=True)
 
+epoch = 0
+
+futures = dict()
+
+def get_callback(f, id):
+    def callback(f):
+        try:
+            futures.pop(id)
+        except:
+            print("No Future found")
+    return callback
+
 for batch_idx, (data, target) in enumerate(train_loader):
     
-    print("batch: " + str(batch_idx))
+    batch_uid = 1000 * epoch + batch_idx
 
     # Get single batch of data
     data_batch = data
@@ -32,24 +44,36 @@ for batch_idx, (data, target) in enumerate(train_loader):
     numpy_data = data_batch.data.numpy()
     byte_data = numpy_data.tobytes()
 
-
-
     # Send Output to PubSub
-    publisher = pubsub.PublisherClient.from_service_account_json('./_spike_gcloud2/creds.json')
-    topic_path = publisher.topic_path("cloundnetwork", "section1-input")
+    publisher = pubsub.PublisherClient.from_service_account_json('./gcloud/creds.json')
+    
 
+    # Send to Section1 input
+    topic_path = publisher.topic_path("cloundnetwork", "section1_input")
     future = publisher.publish(
         topic_path, data=base64.b64encode(data_batch.data.numpy().data)  # data must be a bytestring.
     )
+    futures["section1_input"] = future
+    future.add_done_callback(get_callback(future, "section1_input"))
 
-    data = {
-        "input_signal": str(base64.b64encode(byte_data))[2:-1],
-        "output_signal": "".join([str(i) for i in list(data_target.numpy())]),
-    }
-    print("tick")
-    #signals.append(run_request(data))
-    requests.post("https://us-central1-cloundnetwork.cloudfunctions.net/section1", json=data)
-#    requests.post("https://us-central1-cloundnetwork.cloudfunctions.net/section1", json=data)
+    # Send to Section1 input Delay
+    topic_path = publisher.topic_path("cloundnetwork", "section1_input_delay")
+    future = publisher.publish(
+        topic_path, data=base64.b64encode(data_batch.data.numpy().data)  # data must be a bytestring.
+    )
+    futures["section1_input_delay"] = future
+    future.add_done_callback(get_callback(future, "section1_input_delay"))
 
-    print("tock")
-    time.sleep(1)
+    # Send to Label
+    topic_path = publisher.topic_path("cloundnetwork", "labels")
+    future = publisher.publish(
+        topic_path, data= bytes(data_target)
+    )
+    futures["labels"] = future
+    future.add_done_callback(get_callback(future, "labels"))
+
+    while futures:
+        print("Delay for futures on batch: ", batch_idx)
+        time.sleep(1)
+
+    time.sleep(10)
