@@ -55,7 +55,7 @@ class Section3(nn.Module):
     def forward(self, x):
         out = F.relu(self.linear1(x))
         out = self.dropout3(out)
-        out = F.softmax(self.linear2(out))
+        out = F.softmax(self.linear2(out), dim=1)
 
         return out
 
@@ -72,10 +72,14 @@ def get_callback(f, id):
 
 def run_section_full(event, context):
 
-    data = base64.b64decode(event['data']).decode('utf-8')
+    input_message = base64.b64decode(event['data']).decode("utf-8")
+    batch_uid = input_message[:7]
+    batch_uid_encoded = bytes(batch_uid, "utf-8")
     
+    print(batch_uid)
+
     # Load input Signal
-    input_signal = decode_signal(data, (64, 64 * 7 * 7))
+    input_signal = decode_signal(input_message[7:], (64, 64 * 7 * 7))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
     
@@ -84,6 +88,9 @@ def run_section_full(event, context):
     response = subscriber.pull(subscription_path, max_messages=1)
     messages = response.received_messages
     label = torch.Tensor(list(messages[0].message.data)).type(torch.LongTensor)
+
+    # Acknowledge message
+    subscriber.acknowledge(subscription_path,[messages[0].ack_id])
 
     # Load Model
     model = Section3()
@@ -115,8 +122,10 @@ def run_section_full(event, context):
     publisher = pubsub.PublisherClient()
     topic_path = publisher.topic_path("cloundnetwork", "section2_backprop")
 
+    data = base64.b64encode(input_signal.grad.data.numpy().data) 
+
     future = publisher.publish(
-        topic_path, data=base64.b64encode(input_signal.grad.data.numpy().data)  # data must be a bytestring.
+        topic_path, data= batch_uid_encoded + data # data must be a bytestring.
     )
     futures["section2_backprop"] = future
     future.add_done_callback(get_callback(future, "section2_backprop"))

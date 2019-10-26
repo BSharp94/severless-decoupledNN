@@ -71,10 +71,13 @@ def get_callback(f, id):
 
 def run_section_forward(event, context):
 
-    data = base64.b64decode(event['data']).decode('utf-8')
-    
+    input_message = base64.b64decode(event['data']).decode("utf-8")
+    batch_uid = input_message[:7]
+    batch_uid_encoded = bytes(batch_uid, "utf-8")
+
+    print(batch_uid)
     # Get Input Signal and Environment Vars
-    input_signal = decode_signal(data, (64, 1, 28, 28))
+    input_signal = decode_signal(input_message[7:], (64, 1, 28, 28))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
     
@@ -96,7 +99,7 @@ def run_section_forward(event, context):
     data = base64.b64encode(output.data.numpy().data)
 
     future = publisher.publish(
-        topic_path, data = data 
+        topic_path, data = batch_uid_encoded + data 
     )
     futures["section2_input"] = future
     future.add_done_callback(get_callback(future, "section2_input"))
@@ -105,7 +108,7 @@ def run_section_forward(event, context):
     topic_path = publisher.topic_path("cloundnetwork", "section2_input_delay")
 
     future = publisher.publish(
-        topic_path, data= data
+        topic_path, data= batch_uid_encoded + data
     )
     futures["section2_input_delay"] = future
     future.add_done_callback(get_callback(future, "section2_input_delay"))
@@ -117,10 +120,14 @@ def run_section_forward(event, context):
 
 def run_section_backwards(event, context):
 
-    data = base64.b64decode(event['data']).decode('utf-8')
+    input_message = base64.b64decode(event['data']).decode("utf-8")
+    batch_uid = input_message[:7]
+    batch_uid_encoded = bytes(batch_uid, "utf-8")
+
+    print(batch_uid)
 
     # Get Backprop Signal and Environment Vars
-    backprop_signal = decode_signal(data, (64, 36, 14, 14))
+    backprop_signal = decode_signal(input_message[7:], (64, 36, 14, 14))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
 
@@ -130,6 +137,9 @@ def run_section_backwards(event, context):
     response = subscriber.pull(subscription_path, max_messages=1)
     messages = response.received_messages
     input_signal = decode_signal(messages[0].message.data, (64, 1, 28, 28))
+
+    # Acknowledge message
+    subscriber.acknowledge(subscription_path,[messages[0].ack_id])
 
     # Load Model - If it fails then save the model
     model = Section1()

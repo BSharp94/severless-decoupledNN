@@ -79,10 +79,16 @@ class Section2(nn.Module):
 
 def run_section_forward(event, context):
 
+    input_message = base64.b64decode(event['data']).decode("utf-8")
+    batch_uid = input_message[:7]
+    batch_uid_encoded = bytes(batch_uid, "utf-8")
+
+    print(batch_uid)
+
     data = base64.b64decode(event['data']).decode('utf-8')
 
     # Get Input Signal and Environment Vars
-    input_signal = decode_signal(data, (64, 36, 14, 14))
+    input_signal = decode_signal(input_message[7:], (64, 36, 14, 14))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
     
@@ -100,8 +106,10 @@ def run_section_forward(event, context):
     publisher = pubsub.PublisherClient()
     topic_path = publisher.topic_path("cloundnetwork", "section3_input")
 
+    data = base64.b64encode(output.data.numpy().data)
+
     future = publisher.publish(
-        topic_path, data=base64.b64encode(output.data.numpy().data)  # data must be a bytestring.
+        topic_path, data= batch_uid_encoded + data # data must be a bytestring.
     )
     futures["section3_input"] = future
     future.add_done_callback(get_callback(future, "section3_input"))
@@ -113,10 +121,14 @@ def run_section_forward(event, context):
     
 def run_section_backwards(event, context):
 
-    data = base64.b64decode(event['data']).decode('utf-8')
+    input_message = base64.b64decode(event['data']).decode("utf-8")
+    batch_uid = input_message[:7]
+    batch_uid_encoded = bytes(batch_uid, "utf-8")
+
+    print(batch_uid)
 
     # Get Backprop Signal and Environment Vars
-    backprop_signal = decode_signal(data, (64, 64 * 7 * 7))
+    backprop_signal = decode_signal(input_message[7:], (64, 64 * 7 * 7))
     bucket_name = os.environ.get("BUCKET_NAME")
     model_name = os.environ.get("MODEL_NAME")
 
@@ -126,6 +138,9 @@ def run_section_backwards(event, context):
     response = subscriber.pull(subscription_path, max_messages=1)
     messages = response.received_messages
     input_signal = decode_signal(messages[0].message.data, (64, 36, 14, 14))
+
+    # Acknowledge message
+    subscriber.acknowledge(subscription_path,[messages[0].ack_id])
 
     # Load Model - If it fails then save the model
     model = Section2()
@@ -151,8 +166,10 @@ def run_section_backwards(event, context):
     publisher = pubsub.PublisherClient()
     topic_path = publisher.topic_path("cloundnetwork", "section1_backprop")
 
+    data = base64.b64encode(input_signal.grad.data.numpy().data)
+
     future = publisher.publish(
-        topic_path, data=base64.b64encode(input_signal.grad.data.numpy().data)  # data must be a bytestring.
+        topic_path, data= batch_uid_encoded + data # data must be a bytestring.
     )
     futures["section1_backprop"] = future
     future.add_done_callback(get_callback(future, "section1_backprop"))
