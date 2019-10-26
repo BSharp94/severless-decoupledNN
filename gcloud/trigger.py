@@ -34,7 +34,9 @@ def get_callback(f, id):
 
 for batch_idx, (data, target) in enumerate(train_loader):
     
-    batch_uid = 1000 * epoch + batch_idx
+    #batch_uid = 1000 * epoch + batch_idx
+    batch_uid = f'{epoch:03}' + f'{batch_idx:04}'
+    batch_uid_encoded = bytes(batch_uid, "utf-8")
 
     # Get single batch of data
     data_batch = data
@@ -47,11 +49,12 @@ for batch_idx, (data, target) in enumerate(train_loader):
     # Send Output to PubSub
     publisher = pubsub.PublisherClient.from_service_account_json('./gcloud/creds.json')
     
+    message_data = base64.b64encode(data_batch.data.numpy().data)
 
     # Send to Section1 input
     topic_path = publisher.topic_path("cloundnetwork", "section1_input")
     future = publisher.publish(
-        topic_path, data=base64.b64encode(data_batch.data.numpy().data)  # data must be a bytestring.
+        topic_path, data=batch_uid_encoded + message_data # data must be a bytestring.
     )
     futures["section1_input"] = future
     future.add_done_callback(get_callback(future, "section1_input"))
@@ -59,7 +62,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
     # Send to Section1 input Delay
     topic_path = publisher.topic_path("cloundnetwork", "section1_input_delay")
     future = publisher.publish(
-        topic_path, data=base64.b64encode(data_batch.data.numpy().data)  # data must be a bytestring.
+        topic_path, data=batch_uid_encoded + message_data # data must be a bytestring.
     )
     futures["section1_input_delay"] = future
     future.add_done_callback(get_callback(future, "section1_input_delay"))
@@ -76,4 +79,4 @@ for batch_idx, (data, target) in enumerate(train_loader):
         print("Delay for futures on batch: ", batch_idx)
         time.sleep(1)
 
-    time.sleep(10)
+    time.sleep(1)
