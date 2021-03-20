@@ -30,7 +30,7 @@ http3==0.6.7
 hyperframe==5.2.0
 idna==2.6
 idna-ssl==1.1.0
-Jinja2==2.10.1
+Jinja2==2.11.3
 jmespath==0.9.4
 Keras-Applications==1.0.8
 Keras-Preprocessing==1.1.0
