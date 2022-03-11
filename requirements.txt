@@ -39,7 +39,7 @@ MarkupSafe==1.1.1
 multidict==4.5.2
 numpy==1.17.2
 packaging==19.1
-Pillow==6.1.0
+Pillow==9.0.1
 protobuf==3.9.1
 pyasn1==0.4.7
 pyasn1-modules==0.2.6
